@@ -1,1 +1,598 @@
 
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VIBRA — Phone Vibration Tester</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Bebas+Neue&family=Barlow:wght@300;400;600;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0c;
+    --panel: #111116;
+    --border: #222230;
+    --accent: #00f0ff;
+    --accent2: #ff3c6e;
+    --warn: #ff3c00;
+    --text: #c8cfe0;
+    --muted: #44485a;
+    --glow: 0 0 18px #00f0ff55;
+    --glow-red: 0 0 24px #ff3c0088;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Barlow', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 24px 16px 40px;
+    overflow-x: hidden;
+  }
+
+  /* Scanline overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(0,240,255,0.015) 3px, rgba(0,240,255,0.015) 4px);
+    pointer-events: none;
+    z-index: 999;
+  }
+
+  header {
+    width: 100%;
+    max-width: 600px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    margin-bottom: 32px;
+    border-left: 3px solid var(--accent);
+    padding-left: 14px;
+  }
+
+  .logo {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 3.2rem;
+    letter-spacing: 0.12em;
+    color: #fff;
+    line-height: 1;
+    text-shadow: 0 0 30px #00f0ff88;
+  }
+
+  .logo span { color: var(--accent); }
+
+  .subtitle {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.68rem;
+    color: var(--muted);
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    margin-top: 4px;
+  }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 24px;
+    width: 100%;
+    max-width: 600px;
+    margin-bottom: 16px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .card::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    opacity: 0.4;
+  }
+
+  .section-label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.62rem;
+    letter-spacing: 0.25em;
+    color: var(--accent);
+    text-transform: uppercase;
+    margin-bottom: 18px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .section-label::before {
+    content: '//';
+    opacity: 0.5;
+  }
+
+  /* FREQUENCY SLIDER */
+  .freq-display {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    margin-bottom: 16px;
+  }
+
+  .freq-value {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 3.6rem;
+    color: #fff;
+    line-height: 1;
+    text-shadow: var(--glow);
+    transition: color 0.2s;
+  }
+
+  .freq-unit {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+  }
+
+  .slider-track {
+    position: relative;
+    width: 100%;
+    margin-bottom: 8px;
+  }
+
+  input[type=range] {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+  }
+
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: var(--glow);
+    cursor: pointer;
+    transition: transform 0.1s;
+  }
+
+  input[type=range]:active::-webkit-slider-thumb {
+    transform: scale(1.3);
+  }
+
+  input[type=range]::-webkit-slider-runnable-track {
+    height: 4px;
+    background: linear-gradient(90deg, var(--accent) var(--pct, 50%), var(--border) var(--pct, 50%));
+    border-radius: 2px;
+  }
+
+  .slider-labels {
+    display: flex;
+    justify-content: space-between;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.6rem;
+    color: var(--muted);
+    margin-top: 6px;
+  }
+
+  /* PATTERN OPTIONS */
+  .options-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .opt-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 14px 12px;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    transition: all 0.18s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .opt-btn:hover {
+    border-color: var(--accent);
+    background: rgba(0,240,255,0.04);
+  }
+
+  .opt-btn.active {
+    border-color: var(--accent);
+    background: rgba(0,240,255,0.08);
+    box-shadow: var(--glow);
+  }
+
+  .opt-btn.active-red {
+    border-color: var(--warn);
+    background: rgba(255,60,0,0.1);
+    box-shadow: var(--glow-red);
+  }
+
+  .opt-letter {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 1.8rem;
+    color: var(--muted);
+    line-height: 1;
+    transition: color 0.18s;
+  }
+
+  .opt-btn.active .opt-letter { color: var(--accent); }
+  .opt-btn.active-red .opt-letter { color: var(--warn); }
+
+  .opt-name {
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text);
+  }
+
+  .opt-desc {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.58rem;
+    color: var(--muted);
+    line-height: 1.4;
+  }
+
+  .pulse-dots {
+    display: flex;
+    gap: 4px;
+    margin-top: 2px;
+  }
+
+  .dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--muted);
+    transition: background 0.18s;
+  }
+
+  .opt-btn.active .dot { background: var(--accent); }
+  .opt-btn.active-red .dot { background: var(--warn); }
+
+  /* ALERT BADGE */
+  .alert-badge {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    pointer-events: none;
+    border: 4px solid var(--warn);
+    box-shadow: inset 0 0 80px rgba(255,60,0,0.25), 0 0 60px rgba(255,60,0,0.4);
+    animation: alertPulse 0.4s ease-in-out infinite alternate;
+  }
+
+  .alert-badge.visible { display: block; pointer-events: auto; }
+
+  .alert-text {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 101;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: clamp(2rem, 8vw, 4rem);
+    letter-spacing: 0.18em;
+    color: var(--warn);
+    text-shadow: 0 0 40px #ff3c00cc;
+    text-align: center;
+    display: none;
+    pointer-events: none;
+    animation: textFlicker 0.3s steps(1) infinite;
+  }
+
+  .alert-text.visible { display: block; }
+
+  @keyframes alertPulse {
+    from { box-shadow: inset 0 0 40px rgba(255,60,0,0.2), 0 0 40px rgba(255,60,0,0.3); }
+    to   { box-shadow: inset 0 0 100px rgba(255,60,0,0.4), 0 0 80px rgba(255,60,0,0.5); }
+  }
+
+  @keyframes textFlicker {
+    0%, 85% { opacity: 1; }
+    86%, 100% { opacity: 0.6; }
+  }
+
+  /* TRIGGER BUTTON */
+  .trigger-btn {
+    width: 100%;
+    max-width: 600px;
+    padding: 18px;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 1.5rem;
+    letter-spacing: 0.2em;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    background: linear-gradient(135deg, var(--accent), #0099cc);
+    color: #000;
+    transition: all 0.15s;
+    text-shadow: none;
+    box-shadow: var(--glow);
+    margin-top: 4px;
+  }
+
+  .trigger-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 0 30px #00f0ff99;
+  }
+
+  .trigger-btn:active {
+    transform: scale(0.98);
+  }
+
+  .trigger-btn.running {
+    background: linear-gradient(135deg, var(--warn), #cc2200);
+    box-shadow: var(--glow-red);
+    animation: btnPulse 0.5s ease-in-out infinite alternate;
+  }
+
+  @keyframes btnPulse {
+    from { box-shadow: 0 0 18px #ff3c0066; }
+    to   { box-shadow: 0 0 40px #ff3c00cc; }
+  }
+
+  .status-bar {
+    width: 100%;
+    max-width: 600px;
+    display: flex;
+    justify-content: space-between;
+    margin-top: 14px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.6rem;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+  }
+
+  .status-dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--muted);
+    margin-right: 6px;
+    vertical-align: middle;
+    transition: background 0.3s;
+  }
+
+  .status-dot.on { background: var(--accent); box-shadow: var(--glow); }
+  .status-dot.alert { background: var(--warn); box-shadow: var(--glow-red); }
+
+  /* no-support notice */
+  #no-support {
+    display: none;
+    background: rgba(255,60,110,0.1);
+    border: 1px solid var(--accent2);
+    border-radius: 4px;
+    padding: 12px 16px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--accent2);
+    width: 100%;
+    max-width: 600px;
+    margin-bottom: 12px;
+    text-align: center;
+    letter-spacing: 0.1em;
+  }
+</style>
+</head>
+<body>
+
+<div class="alert-badge" id="alertBadge"></div>
+<div class="alert-text" id="alertText">⚠ ALERT VIBRATION ACTIVE ⚠</div>
+
+<header>
+  <div class="logo">VIB<span>RA</span></div>
+  <div class="subtitle">Phone Vibration Testing System v1.0</div>
+</header>
+
+<div id="no-support">⚠ Vibration API not supported on this device/browser</div>
+
+<!-- FREQUENCY CARD -->
+<div class="card">
+  <div class="section-label">Frequency Control</div>
+  <div class="freq-display">
+    <div class="freq-value" id="freqVal">200</div>
+    <div class="freq-unit">ms / pulse</div>
+  </div>
+  <div class="slider-track">
+    <input type="range" id="freqSlider" min="50" max="1000" step="10" value="200">
+  </div>
+  <div class="slider-labels">
+    <span>FAST 50ms</span>
+    <span>MED 500ms</span>
+    <span>SLOW 1000ms</span>
+  </div>
+</div>
+
+<!-- PATTERN CARD -->
+<div class="card">
+  <div class="section-label">Vibration Pattern</div>
+  <div class="options-grid">
+    <button class="opt-btn active" data-option="A" onclick="selectOption(this)">
+      <div class="opt-letter">A</div>
+      <div class="opt-name">Single Pulse</div>
+      <div class="opt-desc">One short burst</div>
+      <div class="pulse-dots"><div class="dot"></div></div>
+    </button>
+    <button class="opt-btn" data-option="B" onclick="selectOption(this)">
+      <div class="opt-letter">B</div>
+      <div class="opt-name">Double Pulse</div>
+      <div class="opt-desc">Two rapid pulses</div>
+      <div class="pulse-dots"><div class="dot"></div><div class="dot"></div></div>
+    </button>
+    <button class="opt-btn" data-option="C" onclick="selectOption(this)">
+      <div class="opt-letter">C</div>
+      <div class="opt-name">Triple Burst</div>
+      <div class="opt-desc">Three-beat pattern</div>
+      <div class="pulse-dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+    </button>
+    <button class="opt-btn" data-option="D" onclick="selectOption(this)">
+      <div class="opt-letter">D</div>
+      <div class="opt-name">Quad Rapid</div>
+      <div class="opt-desc">Four quick hits</div>
+      <div class="pulse-dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+    </button>
+    <button class="opt-btn" data-option="E" onclick="selectOption(this)" style="grid-column: span 2;">
+      <div class="opt-letter" style="color: var(--warn);">E</div>
+      <div class="opt-name" style="color: var(--warn);">🔴 RED ALERT — Continuous</div>
+      <div class="opt-desc">Non-stop pulse + red alert screen</div>
+      <div class="pulse-dots" style="gap:3px;">
+        <div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div>
+      </div>
+    </button>
+  </div>
+</div>
+
+<button class="trigger-btn" id="triggerBtn" onclick="toggleVibration()">▶ TRIGGER VIBRATION</button>
+
+<div class="status-bar">
+  <span><span class="status-dot" id="statusDot"></span><span id="statusText">READY</span></span>
+  <span id="patternInfo">PATTERN: A — SINGLE PULSE</span>
+</div>
+
+<script>
+  const slider = document.getElementById('freqSlider');
+  const freqVal = document.getElementById('freqVal');
+  const triggerBtn = document.getElementById('triggerBtn');
+  const statusDot = document.getElementById('statusDot');
+  const statusText = document.getElementById('statusText');
+  const patternInfo = document.getElementById('patternInfo');
+  const alertBadge = document.getElementById('alertBadge');
+  const alertText = document.getElementById('alertText');
+  const noSupport = document.getElementById('no-support');
+
+  let selectedOption = 'A';
+  let running = false;
+  let intervalId = null;
+
+  if (!('vibrate' in navigator)) {
+    noSupport.style.display = 'block';
+  }
+
+  // Slider live update
+  slider.addEventListener('input', () => {
+    const v = slider.value;
+    freqVal.textContent = v;
+    // update track fill
+    const pct = ((v - slider.min) / (slider.max - slider.min)) * 100;
+    slider.style.setProperty('--pct', pct + '%');
+  });
+  // Init track fill
+  slider.dispatchEvent(new Event('input'));
+
+  function getPattern() {
+    const dur = parseInt(slider.value);
+    const gap = Math.round(dur * 0.6);
+    const patterns = {
+      A: [dur],
+      B: [dur, gap, dur],
+      C: [dur, gap, dur, gap, dur],
+      D: [dur, gap, dur, gap, dur, gap, dur],
+      E: null // continuous handled separately
+    };
+    return patterns[selectedOption];
+  }
+
+  function selectOption(btn) {
+    document.querySelectorAll('.opt-btn').forEach(b => {
+      b.classList.remove('active', 'active-red');
+    });
+    selectedOption = btn.dataset.option;
+    if (selectedOption === 'E') {
+      btn.classList.add('active-red');
+    } else {
+      btn.classList.add('active');
+    }
+
+    const names = { A:'SINGLE PULSE', B:'DOUBLE PULSE', C:'TRIPLE BURST', D:'QUAD RAPID', E:'RED ALERT' };
+    patternInfo.textContent = `PATTERN: ${selectedOption} — ${names[selectedOption]}`;
+
+    if (running) stopVibration();
+  }
+
+  function triggerOnce() {
+    const pattern = getPattern();
+    if (pattern) navigator.vibrate(pattern);
+  }
+
+  function startContinuous() {
+    const fire = () => {
+      const dur = parseInt(slider.value);
+      navigator.vibrate(dur);
+    };
+    fire();
+    intervalId = setInterval(fire, parseInt(slider.value) * 2);
+  }
+
+  function stopVibration() {
+    running = false;
+    clearInterval(intervalId);
+    navigator.vibrate(0);
+    triggerBtn.textContent = '▶ TRIGGER VIBRATION';
+    triggerBtn.classList.remove('running');
+    statusDot.className = 'status-dot';
+    statusText.textContent = 'READY';
+    // hide alert
+    alertBadge.classList.remove('visible');
+    alertText.classList.remove('visible');
+  }
+
+  function toggleVibration() {
+    if (running) {
+      stopVibration();
+      return;
+    }
+
+    if (selectedOption === 'E') {
+      // Red alert continuous
+      running = true;
+      triggerBtn.textContent = '⏹ STOP ALERT';
+      triggerBtn.classList.add('running');
+      statusDot.className = 'status-dot alert';
+      statusText.textContent = 'ALERT ACTIVE';
+      alertBadge.classList.add('visible');
+      alertText.classList.add('visible');
+      startContinuous();
+    } else {
+      // Single fire
+      triggerOnce();
+      triggerBtn.textContent = '⚡ FIRED!';
+      triggerBtn.classList.add('running');
+      statusDot.className = 'status-dot on';
+      const names = { A:'SINGLE PULSE', B:'DOUBLE PULSE', C:'TRIPLE BURST', D:'QUAD RAPID' };
+      statusText.textContent = `VIBRATING — ${names[selectedOption]}`;
+      // estimate total duration
+      const pattern = getPattern();
+      const total = pattern.reduce((a, b) => a + b, 0);
+      setTimeout(() => {
+        if (!running || selectedOption !== 'E') {
+          triggerBtn.textContent = '▶ TRIGGER VIBRATION';
+          triggerBtn.classList.remove('running');
+          statusDot.className = 'status-dot';
+          statusText.textContent = 'READY';
+        }
+      }, total + 100);
+    }
+  }
+
+  // Close alert on click outside the trigger btn
+  alertBadge.addEventListener('click', stopVibration);
+</script>
+</body>
+</html>
