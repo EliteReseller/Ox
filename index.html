@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -373,6 +372,37 @@
   .status-dot.on { background: var(--accent); box-shadow: var(--glow); }
   .status-dot.alert { background: var(--warn); box-shadow: var(--glow-red); }
 
+  /* INTENSITY */
+  .intensity-display {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+    margin-bottom: 14px;
+  }
+  .intensity-val {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 3.2rem;
+    color: #fff;
+    line-height: 1;
+    text-shadow: var(--glow);
+    transition: color 0.2s;
+  }
+  .intensity-pct {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--muted);
+  }
+  .intensity-desc {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.62rem;
+    color: var(--muted);
+    margin-top: 8px;
+    line-height: 1.6;
+    padding-top: 8px;
+    border-top: 1px solid var(--border);
+  }
+  .intensity-desc span { color: var(--accent); }
+
   /* no-support notice */
   #no-support {
     display: none;
@@ -417,6 +447,26 @@
     <span>FAST 50ms</span>
     <span>MED 500ms</span>
     <span>SLOW 1000ms</span>
+  </div>
+</div>
+
+<!-- INTENSITY CARD -->
+<div class="card">
+  <div class="section-label">Intensity / Softness</div>
+  <div class="intensity-display">
+    <div class="intensity-val" id="intensityVal">100</div>
+    <div class="intensity-pct">%</div>
+  </div>
+  <div class="slider-track">
+    <input type="range" id="intensitySlider" min="10" max="100" step="5" value="100">
+  </div>
+  <div class="slider-labels">
+    <span>WHISPER 10%</span>
+    <span>MEDIUM 50%</span>
+    <span>FULL 100%</span>
+  </div>
+  <div class="intensity-desc" id="intensityDesc">
+    <span>MODE: FULL POWER</span> — Standard pulse durations. Maximum feel and audible buzz.
   </div>
 </div>
 
@@ -477,90 +527,156 @@
   const alertText = document.getElementById('alertText');
   const noSupport = document.getElementById('no-support');
 
+  const intensitySlider = document.getElementById('intensitySlider');
+  const intensityVal = document.getElementById('intensityVal');
+  const intensityDesc = document.getElementById('intensityDesc');
+
+  // Intensity levels: at low %, we break pulses into short micro-bursts with gaps
+  // This makes the motor work less = shorter travel = quieter, softer feel
+  function getIntensity() { return parseInt(intensitySlider.value); }
+
+  function applyIntensityPulse(dur) {
+    const pct = getIntensity() / 100;
+    if (pct >= 0.9) return dur; // full power, no change
+    // chop the pulse: only vibrate for pct of the duration, motor rests the rest
+    return Math.max(15, Math.round(dur * pct));
+  }
+
+  function buildSoftPattern(pattern) {
+    const pct = getIntensity() / 100;
+    if (pct >= 0.9) return pattern;
+    // Replace each ON segment with a shorter micro-stutter
+    return pattern.map((ms, i) => {
+      if (i % 2 === 0) return applyIntensityPulse(ms); // ON segments
+      return ms; // keep gaps as-is
+    });
+  }
+
+  intensitySlider.addEventListener('input', () => {
+    const v = parseInt(intensitySlider.value);
+    intensityVal.textContent = v;
+    const pct = ((v - intensitySlider.min) / (intensitySlider.max - intensitySlider.min)) * 100;
+    intensitySlider.style.setProperty('--pct', pct + '%');
+
+    let mode, desc;
+    if (v >= 90) {
+      mode = 'FULL POWER'; desc = 'Standard pulse durations. Maximum feel and audible buzz.';
+      intensityVal.style.color = '#fff';
+    } else if (v >= 60) {
+      mode = 'MEDIUM'; desc = 'Pulses trimmed to ' + v + '% duration. Noticeably quieter motor.';
+      intensityVal.style.color = '#aaffee';
+    } else if (v >= 30) {
+      mode = 'SOFT'; desc = 'Short micro-bursts at ' + v + '%. Much less audible click from motor.';
+      intensityVal.style.color = '#88ddff';
+    } else {
+      mode = 'WHISPER'; desc = 'Very brief taps at ' + v + '%. Barely felt, nearly silent.';
+      intensityVal.style.color = 'var(--muted)';
+    }
+    intensityDesc.innerHTML = `<span>MODE: ${mode}</span> — ${desc}`;
+  });
+  intensitySlider.dispatchEvent(new Event('input'));
+
   let selectedOption = 'A';
   let running = false;
   let intervalId = null;
+  let vibSupported = ('vibrate' in navigator);
 
-  if (!('vibrate' in navigator)) {
+  // Samsung / Android Chrome sometimes needs vibrate called on window too
+  // Try to unlock vibration on first interaction
+  let vibUnlocked = false;
+
+  function unlockVibration() {
+    if (!vibUnlocked) {
+      try {
+        navigator.vibrate(1); // tiny unlock pulse
+        vibUnlocked = true;
+      } catch(e) {}
+    }
+  }
+
+  document.addEventListener('touchstart', unlockVibration, { once: true });
+  document.addEventListener('click', unlockVibration, { once: true });
+
+  if (!vibSupported) {
     noSupport.style.display = 'block';
+  }
+
+  function doVibrate(pattern) {
+    try {
+      // Samsung workaround: cancel first, then re-trigger
+      navigator.vibrate(0);
+      setTimeout(() => {
+        const result = navigator.vibrate(pattern);
+        console.log('vibrate result:', result, 'pattern:', pattern);
+        if (result === false) {
+          noSupport.style.display = 'block';
+          noSupport.textContent = '⚠ Vibration blocked — ensure Chrome has vibration permission and screen is not locked';
+        }
+      }, 30);
+    } catch(e) {
+      console.error('vibrate error:', e);
+    }
   }
 
   // Slider live update
   slider.addEventListener('input', () => {
     const v = slider.value;
     freqVal.textContent = v;
-    // update track fill
     const pct = ((v - slider.min) / (slider.max - slider.min)) * 100;
     slider.style.setProperty('--pct', pct + '%');
   });
-  // Init track fill
   slider.dispatchEvent(new Event('input'));
 
   function getPattern() {
     const dur = parseInt(slider.value);
-    const gap = Math.round(dur * 0.6);
-    const patterns = {
+    const gap = Math.max(80, Math.round(dur * 0.6));
+    const base = {
       A: [dur],
       B: [dur, gap, dur],
       C: [dur, gap, dur, gap, dur],
       D: [dur, gap, dur, gap, dur, gap, dur],
-      E: null // continuous handled separately
-    };
-    return patterns[selectedOption];
+      E: null
+    }[selectedOption];
+    return base ? buildSoftPattern(base) : null;
   }
 
   function selectOption(btn) {
-    document.querySelectorAll('.opt-btn').forEach(b => {
-      b.classList.remove('active', 'active-red');
-    });
+    document.querySelectorAll('.opt-btn').forEach(b => b.classList.remove('active', 'active-red'));
     selectedOption = btn.dataset.option;
-    if (selectedOption === 'E') {
-      btn.classList.add('active-red');
-    } else {
-      btn.classList.add('active');
-    }
-
+    btn.classList.add(selectedOption === 'E' ? 'active-red' : 'active');
     const names = { A:'SINGLE PULSE', B:'DOUBLE PULSE', C:'TRIPLE BURST', D:'QUAD RAPID', E:'RED ALERT' };
     patternInfo.textContent = `PATTERN: ${selectedOption} — ${names[selectedOption]}`;
-
     if (running) stopVibration();
-  }
-
-  function triggerOnce() {
-    const pattern = getPattern();
-    if (pattern) navigator.vibrate(pattern);
   }
 
   function startContinuous() {
     const fire = () => {
-      const dur = parseInt(slider.value);
-      navigator.vibrate(dur);
+      const dur = Math.max(100, parseInt(slider.value));
+      const soft = applyIntensityPulse(dur);
+      doVibrate([soft]);
     };
     fire();
-    intervalId = setInterval(fire, parseInt(slider.value) * 2);
+    intervalId = setInterval(fire, Math.max(200, parseInt(slider.value) * 2));
   }
 
   function stopVibration() {
     running = false;
     clearInterval(intervalId);
-    navigator.vibrate(0);
+    try { navigator.vibrate(0); } catch(e) {}
     triggerBtn.textContent = '▶ TRIGGER VIBRATION';
     triggerBtn.classList.remove('running');
     statusDot.className = 'status-dot';
     statusText.textContent = 'READY';
-    // hide alert
     alertBadge.classList.remove('visible');
     alertText.classList.remove('visible');
   }
 
   function toggleVibration() {
-    if (running) {
-      stopVibration();
-      return;
-    }
+    unlockVibration();
+
+    if (running) { stopVibration(); return; }
 
     if (selectedOption === 'E') {
-      // Red alert continuous
       running = true;
       triggerBtn.textContent = '⏹ STOP ALERT';
       triggerBtn.classList.add('running');
@@ -570,28 +686,23 @@
       alertText.classList.add('visible');
       startContinuous();
     } else {
-      // Single fire
-      triggerOnce();
+      const pattern = getPattern();
+      doVibrate(pattern);
       triggerBtn.textContent = '⚡ FIRED!';
       triggerBtn.classList.add('running');
       statusDot.className = 'status-dot on';
       const names = { A:'SINGLE PULSE', B:'DOUBLE PULSE', C:'TRIPLE BURST', D:'QUAD RAPID' };
       statusText.textContent = `VIBRATING — ${names[selectedOption]}`;
-      // estimate total duration
-      const pattern = getPattern();
-      const total = pattern.reduce((a, b) => a + b, 0);
+      const total = pattern.reduce((a, b) => a + b, 0) + 200;
       setTimeout(() => {
-        if (!running || selectedOption !== 'E') {
-          triggerBtn.textContent = '▶ TRIGGER VIBRATION';
-          triggerBtn.classList.remove('running');
-          statusDot.className = 'status-dot';
-          statusText.textContent = 'READY';
-        }
-      }, total + 100);
+        triggerBtn.textContent = '▶ TRIGGER VIBRATION';
+        triggerBtn.classList.remove('running');
+        statusDot.className = 'status-dot';
+        statusText.textContent = 'READY';
+      }, total);
     }
   }
 
-  // Close alert on click outside the trigger btn
   alertBadge.addEventListener('click', stopVibration);
 </script>
 </body>
